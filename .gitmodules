@@ -1,0 +1,3 @@
+[submodule "ncd"]
+	path = ncd
+	url = git@github.com:ncd-io/Industrial-Relay-Control.git

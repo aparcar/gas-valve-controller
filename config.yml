@@ -1,0 +1,49 @@
+devices:
+  mpv:
+    port: /dev/ttyUSB2
+    baud: 9600
+    init:
+      # port: state
+      1: 3
+  sv:
+    port: /dev/ttyUSB0
+    baud: 115200
+    init:
+      1: 0
+      2: 0
+      3: 0
+      4: 0
+
+sequence:
+  # minute,device,port,state
+  - 1,mpv,1,1
+  - 1,sv,1,1
+  - 2,sv,2,1
+  - 3,sv,3,1
+  - 4,sv,4,1
+  - 4,mpv,1,2
+  - 5,sv,1,0
+  - 6,sv,2,0
+  - 7,sv,3,0
+  - 8,sv,4,0
+
+sequence_2:
+  - 0.1,sv,1,1
+  - 0.5,sv,1,0
+  - 20,sv,2,1
+  - 20,sv,3,1
+  - 20,mpv,1,3
+  - 20,sv,4,1
+  - 21,sv,4,0
+  - 21,mpv,1,4
+  - 21,sv,2,0
+  - 21,sv,3,0
+  - 21.1,sv,1,1
+  - 21.5,sv,1,0
+  - 61,mpv,1,2
+  - 61,sv,5,1
+  - 61,sv,5,0
+  - 81,sv,4,0
+  - 81,mpv,1,4
+  - 81,sv,2,0
+  - 81,sv,3,0
