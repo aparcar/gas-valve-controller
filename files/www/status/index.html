@@ -1,0 +1,18 @@
+<html>
+	<header>
+		<style>
+table, th, td {
+	border: 1px solid black;
+}
+		</style>
+	</header>
+	<body>
+		Upload new configuration:
+		<form enctype="multipart/form-data" action="/cgi-bin/config-upload" method="POST">
+			<input type="file" name="filename">
+			<input type="submit">
+		</form>
+		<table id="states"></table>
+		<script src="code.js"> </script>
+	</body>
+</html>
