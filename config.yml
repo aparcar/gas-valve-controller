@@ -1,3 +1,6 @@
+
+state_file: ./state.json
+
 devices:
   mpv1:
     enabled: false

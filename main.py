@@ -7,6 +7,7 @@ import serial
 import yaml
 from gpiozero import OutputDevice
 from influxdb import InfluxDBClient
+import json
 
 
 state_mapping = {
@@ -39,6 +40,9 @@ if not config_path.is_file():
     die(f"Couldn't not find configuration file: {config_file}")
 
 cfg = yaml.safe_load(config_path.read_text())
+
+if "state_file" in cfg:
+    state_file = Path(cfg["state_file"])
 
 if cfg["influxdb"]["enabled"]:
     print("Connecting to InfluxDB")
@@ -102,7 +106,6 @@ def set_state(device: str, port: int, state):
     state = state_mapping.get(state, state)
     states[f"{device}_{port}"] = state
 
-
     if device not in cfg["devices"].keys():
         die(f"Unknown device: {device}")
 
@@ -112,6 +115,9 @@ def set_state(device: str, port: int, state):
         set_mpv(cfg["devices"][device], state)
     elif device.startswith("gpio"):
         set_gpio(cfg["devices"][device], port, state)
+
+    if state_file:
+        state_file.write_text(json.dumps(states, sort_keys=True, indent=4))
 
     if cfg["influxdb"]["enabled"]:
         client.write_points(
