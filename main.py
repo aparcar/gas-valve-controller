@@ -1,15 +1,31 @@
-# import the pyserial module
-import serial
-import ncd.ncd_industrial_relay as ncd
-import time
-import yaml
-from pathlib import Path
 import sys
+import time
+from pathlib import Path
+
+import ncd.ncd_industrial_relay as ncd
+import serial
+import yaml
+from gpiozero import OutputDevice
+from influxdb import InfluxDBClient
+
+
+state_mapping = {
+    0: 0,
+    1: 1,
+    "0": 0,
+    "1": 1,
+    "A": 0,
+    "B": 1,
+    "on": 0,
+    "off": 1,
+}
+
+states = {}
 
 
 def die(msg):
     print(f"Error: {msg}")
-    quit(1)
+    sys.exit(1)
 
 
 if len(sys.argv) > 1:
@@ -24,8 +40,52 @@ if not config_path.is_file():
 
 cfg = yaml.safe_load(config_path.read_text())
 
+if cfg["influxdb"]["enabled"]:
+    print("Connecting to InfluxDB")
+    client = InfluxDBClient(
+        cfg["influxdb"]["address"],
+        cfg["influxdb"]["port"],
+        cfg["influxdb"]["username"],
+        cfg["influxdb"]["password"],
+        cfg["influxdb"]["database"],
+    )
+else:
+    print("InfluxDB connection disabled")
 
-def set_sv(connection, port: int, state: int):
+
+def init_serial(connection):
+    connection["serial"] = serial.Serial(
+        connection["port"], baudrate=connection["baud"], bytesize=8, stopbits=1
+    )
+
+
+def init_sv(connection):
+    init_serial(connection)
+    connection["controller"] = ncd.Relay_Controller(connection["serial"])
+
+
+def init_gpio(connection):
+    cfg_gpio = cfg["devices"].get("gpio", {})
+    cfg_gpio["ports"] = {}
+    for port, state in cfg_gpio.get("init", {}).items():
+        if state:
+            cfg_gpio["ports"][port] = OutputDevice(cfg_gpio["mapping"][port])
+
+
+def set_gpio(connection, port: int, state):
+    print(f"{port}: {state}")
+    if state == 1:
+        if port not in connection["ports"]:
+            connection["ports"][port] = OutputDevice(connection["mapping"][port])
+    elif state == 0:
+        if port in connection["ports"]:
+            connection["ports"].pop(port).close()
+    else:
+        die(f"GPIO only support state 0 (off) and 1 (on), got {state}")
+
+
+def set_sv(connection, port: int, state):
+    port = connection["mapping"][port]
     if state == 1:
         connection["controller"].turn_on_relay_by_index(port)
     elif state == 0:
@@ -34,11 +94,15 @@ def set_sv(connection, port: int, state: int):
         die(f"SV only support state 0 (off) and 1 (on), got {state}")
 
 
-def set_mpv(connection, state: int):
+def set_mpv(connection, state):
     connection["serial"].write(bytes(f"GO{state}\r", "utf-8"))
 
 
-def set_state(device: str, port: int, state: int):
+def set_state(device: str, port: int, state):
+    state = state_mapping.get(state, state)
+    states[f"{device}_{port}"] = state
+
+
     if device not in cfg["devices"].keys():
         die(f"Unknown device: {device}")
 
@@ -46,19 +110,29 @@ def set_state(device: str, port: int, state: int):
         set_sv(cfg["devices"][device], port, state)
     elif device.startswith("mpv"):
         set_mpv(cfg["devices"][device], state)
-    else:
-        die(f"Device name must start with 'sv' or 'mpv': {device}")
+    elif device.startswith("gpio"):
+        set_gpio(cfg["devices"][device], port, state)
+
+    if cfg["influxdb"]["enabled"]:
+        client.write_points(
+            [{"measurement": "valve_state", "fields": {f"{device}_{port}": int(state)}}]
+        )
 
 
 for name, connection in cfg["devices"].items():
+    if not connection["enabled"]:
+        print(f"Skipping device {name} (disabled)")
+        continue
+
     print(f"Setup device {name}")
-    connection["serial"] = serial.Serial(
-        connection["port"], baudrate=connection["baud"], bytesize=8, stopbits=1
-    )
-    if name.startswith("sv"):
-        connection["controller"] = ncd.Relay_Controller(
-            connection["serial"]
-        )
+    if name.startswith("gpio"):
+        init_gpio(connection)
+    elif name.startswith("sv"):
+        init_sv(connection)
+    elif name.startswith("mpv"):
+        init_serial(connection)
+    else:
+        die(f"Unkown device type: {name}. Pleaes use 'gpio', 'sv' or 'mpv'")
 
     for port, state in connection["init"].items():
         print(f"{name}: Set port {port} to state {state}")
@@ -77,11 +151,12 @@ while True:
     print("Start sequence from beginning")
     time_passed = 0.0
     for number, step in enumerate(cfg["sequence"]):
-        delay, device, port, state = step.split(",")
+        delay, device, port, state = step.strip().split(",")
         time_to_wait = float(delay) * 60 - time_passed
         print(
-            f"[{number}/{step_count}]: Set {device}#{port} to {state} in {time_to_wait} seconds"
+            f"[{number}/{step_count}]: "
+            f"Set {device}#{port} to {state} in {time_to_wait} seconds"
         )
         time.sleep(time_to_wait)
         time_passed += time_to_wait
-        set_state(device, int(port), int(state))
+        set_state(device, int(port), state)
