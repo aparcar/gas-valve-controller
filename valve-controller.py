@@ -7,8 +7,9 @@ from pathlib import Path
 import ncd.ncd_industrial_relay as ncd
 import serial
 import yaml
-from influxdb import InfluxDBClient
+from influxdb import InfluxDBClient, SeriesHelper
 import json
+import threading
 
 
 state_mapping = {
@@ -23,6 +24,8 @@ state_mapping = {
 }
 
 states = {}
+
+print("Starting...")
 
 
 def die(msg):
@@ -42,6 +45,8 @@ if not config_path.is_file():
 
 cfg = yaml.safe_load(config_path.read_text())
 
+print(f"Loaded config from {config_file}")
+
 if "state_file" in cfg:
     state_file = Path(cfg["state_file"])
 
@@ -54,6 +59,35 @@ if cfg["influxdb"]["enabled"]:
         cfg["influxdb"]["password"],
         cfg["influxdb"]["database"],
     )
+
+    class BasicSeriesHelper(SeriesHelper):
+        class Meta:
+            client = client
+            series_name = "events.stats.basic"
+            fields = ["h2", "co"]
+            tags = ["node"]
+            bulk_size = 1
+            autocommit = True
+
+    def peak2influxdb():
+        while True:
+            with serial.Serial("/dev/ttyUSB0", 9600) as ser:
+                try:
+                    values = ser.read_until(b"\x03").decode("utf-8").split(",")
+                    h2 = values[6]
+                    co = values[9]
+                    print(f"H2: {h2}, CO: {co}")
+
+                    BasicSeriesHelper(
+                        node="sws-1",
+                        h2=int(h2),
+                        co=int(co),
+                    )
+                except Exception as e:
+                    print(e)
+
+    print("Start peak2influxdb thread")
+    threading.Thread(target=peak2influxdb).start()
 else:
     print("InfluxDB connection disabled")
 
@@ -162,6 +196,8 @@ step_count = len(cfg["sequence"])
 
 print(f"Total sequence length is {length_minutes} minutes")
 
+
+print("Enter infinite valve loop")
 while True:
     print("Start sequence from beginning")
     time_passed = 0.0
