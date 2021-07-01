@@ -1,4 +1,6 @@
 
+
+manual_mode: false
 state_file: /root/state.json
 
 devices:

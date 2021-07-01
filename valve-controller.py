@@ -208,6 +208,11 @@ while True:
             f"[{number}/{step_count}]: "
             f"Set {device}#{port} to {state} in {time_to_wait} seconds"
         )
-        time.sleep(time_to_wait)
+
+        if cfg.get("manual_mode"):
+            input("Press enter to continue (manual mode enalbed)")
+        else:
+            time.sleep(time_to_wait)
+
         time_passed += time_to_wait
         set_state(device, int(port), state)
