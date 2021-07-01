@@ -1,8 +1,8 @@
 
-state_file: ./state.json
+state_file: /root/state.json
 
 devices:
-  mpv1:
+  MPV1:
     enabled: false
     port: /dev/mpv1
     baud: 9600
@@ -10,7 +10,7 @@ devices:
       # port: state
       1: 3
 
-  mpv2:
+  MPV2:
     enabled: false
     port: /dev/mpv1
     port: /dev/mpv2
@@ -18,14 +18,14 @@ devices:
     init:
       1: 3
 
-  mpv3:
+  MPV3:
     enabled: false
     port: /dev/mpv3
     baud: 9600
     init:
       1: A
 
-  sv:
+  SV:
     enabled: false
     port: /dev/relay
     baud: 115200
@@ -51,6 +51,7 @@ devices:
     enabled: true
     mapping:
       # relay: pin
+      # RaspberryPi 4 B setup
       1: 17
       2: 27
       3: 22
@@ -74,38 +75,73 @@ devices:
       3: 1
 
 sequence:
-  - 0.1,gpio,1,on
-  - 0.2,gpio,2,on
-  - 0.3,gpio,1,off
-  - 0.4,gpio,2,off
+  - 0.1,GPIO,1,on
+  - 0.2,GPIO,2,on
+  - 0.3,GPIO,1,off
+  - 0.4,GPIO,2,off
 
-    #  - 0.1,sv,1,on
-    #  - 0.5,sv,1,off
-    #  - 20,sv,2,on
-    #  - 20,sv,3,on
-    #  - 20,mpv1,1,4
-    #  - 20,sv4,on
-    #  - 21,sv4,off
-    #  - 21,mpv1,2
-    #  - 21,sv2,off
-    #  - 21,sv3,off
-    #  - 21.1,sv1,on
-    #  - 21.5,sv1,off
-    #  - 20,sv2,on
-    #  - 20,sv3,on
-    #  - 20,mpv2,1
-    #  - 20,sv6,on
-    #  - 21,sv6,off
-    #  - 21,mpv2,3
-    #  - 21,sv2,off
-    #  - 21,sv3,off
-    #  - 21.1,sv1,on
-    #  - 21.1,sv1,off
-    #  - 61,mpv1,1
-    #  - 61,sv5,on
-    #  - 61,mpv3,B
-    #  - 61,sv5,off
-    #  - 81,mpv2,4
-    #  - 81,sv7,on
-    #  - 81,sv7,off
-    #  - 101,mpv3,A
+sequence_reboot:
+  # Reboot program (this discharges any water sample in the system)
+  - 0.1,SV,4,1
+  - 0.12,SV,5,1
+  - 0.14,MPV1,1,4
+  - 0.44,SV,4,0
+  - 0.46,SV,5,0
+  - 0.50,SV,6,1
+  - 0.52,SV,8,1
+  - 0.54,MPV1,1,3
+  - 0.58,MPV2,1,2
+  - 1.50,SV,6,0
+  - 1.52,SV,8,0
+
+sequence_run:
+  # Run program
+  - 20,SV,3,1
+  - 20.05,SV,4,1
+  - 20.10,MPV1,1,4
+  - 20.15,SV,5,1
+  - 21.15,SV,5,0
+  - 21.20,MPV1,1,2
+  - 21.25,SV,3,0
+  - 21.30,SV,4,0
+  - 40,SV,3,1
+  - 40.05,SV,4,1
+  - 40.10,MPV2,1,1
+  - 40.15,SV,7,1
+  - 41.15,SV,7,0
+  - 41.20,MPV2,1,4
+  - 41.25,SV,4,0
+  - 61,MPV1,1,1
+  - 61.05,SV,6,1
+  - 61.20,MPV3,1,B
+  - 81,SV,6,0
+  - 81.20,MPV2,1,4
+  - 81.25,SV,8,1
+  - 101,SV,8,0
+  - 101.20,MPV3,1,A
+
+sequence_check:
+  # Check program
+  - 1,SV,3,1
+  - 1.05,SV,4,1
+  - 1.10,MPV1,1,4
+  - 1.15,SV,5,1
+  - 2.15,SV,5,0
+  - 2.20,MPV1,1,2
+  - 2.25,SV,3,0
+  - 2.30,SV,4,0
+  - 3.30,SV,3,1
+  - 3.35,SV,4,1
+  - 3.40,MPV2,1,1
+  - 3.45,SV,7,1
+  - 4.35,SV,7,0
+  - 4.40,MPV2,1,4
+  - 4.45,SV,4,0
+  - 5,MPV1,1,1
+  - 5.05,SV,6,1
+  - 5.20,MPV3,1,B
+  - 6,SV,6,0
+  - 6.20,MPV2,1,4
+  - 6.25,SV,8,1
+  - 7,SV,8,0
+  - 7.20,MPV3,1,A
