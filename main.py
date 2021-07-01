@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import sys
 import time
 from pathlib import Path
@@ -5,7 +7,6 @@ from pathlib import Path
 import ncd.ncd_industrial_relay as ncd
 import serial
 import yaml
-from gpiozero import OutputDevice
 from influxdb import InfluxDBClient
 import json
 
@@ -70,20 +71,28 @@ def init_sv(connection):
 
 def init_gpio(connection):
     cfg_gpio = cfg["devices"].get("gpio", {})
-    cfg_gpio["ports"] = {}
     for port, state in cfg_gpio.get("init", {}).items():
+        gpio = cfg_gpio["mapping"][port]
+        print(gpio)
+        if Path(f"/sys/class/gpio/gpio{gpio}").is_dir():
+            Path("/sys/class/gpio/unexport").write_text(str(gpio))
+
         if state:
-            cfg_gpio["ports"][port] = OutputDevice(cfg_gpio["mapping"][port])
+            Path("/sys/class/gpio/export").write_text(str(gpio))
+            Path(f"/sys/class/gpio/gpio{gpio}/direction").write_text("out")
 
 
 def set_gpio(connection, port: int, state):
     print(f"{port}: {state}")
+    gpio = connection["mapping"][port]
     if state == 1:
-        if port not in connection["ports"]:
-            connection["ports"][port] = OutputDevice(connection["mapping"][port])
+        if not Path(f"/sys/class/gpio/gpio{gpio}/").is_dir():
+            Path("/sys/class/gpio/export").write_text(str(gpio))
+
+        Path(f"/sys/class/gpio/gpio{gpio}/direction").write_text("out")
     elif state == 0:
-        if port in connection["ports"]:
-            connection["ports"].pop(port).close()
+        if Path(f"/sys/class/gpio/gpio{gpio}/").is_dir():
+            Path("/sys/class/gpio/unexport").write_text(str(gpio))
     else:
         die(f"GPIO only support state 0 (off) and 1 (on), got {state}")
 
