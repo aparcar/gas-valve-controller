@@ -240,3 +240,6 @@ while True:
 
         time_passed += time_to_wait
         set_state(device, int(port), state)
+
+    if not cfg.get("sequence_loop", True):
+        break
