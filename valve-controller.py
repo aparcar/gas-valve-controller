@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 
+import json
 import sys
+import threading
 import time
 from pathlib import Path
 
-import ncd.ncd_industrial_relay as ncd
 import serial
 import yaml
 from influxdb import InfluxDBClient, SeriesHelper
-import json
-import threading
 
+import ncd.ncd_industrial_relay as ncd
 
 state_mapping = {
     0: 0,
@@ -47,8 +47,8 @@ cfg = yaml.safe_load(config_path.read_text())
 
 print(f"Loaded config from {config_file}")
 
-if "state_file" in cfg:
-    state_file = Path(cfg["state_file"])
+if "states_file" in cfg:
+    states_file = Path(cfg["states_file"])
 
 if cfg["influxdb"]["enabled"]:
     print("Connecting to InfluxDB")
@@ -69,27 +69,44 @@ if cfg["influxdb"]["enabled"]:
             bulk_size = 1
             autocommit = True
 
-    def peak2influxdb():
-        while True:
-            with serial.Serial("/dev/ttyUSB0", 9600) as ser:
-                try:
-                    values = ser.read_until(b"\x03").decode("utf-8").split(",")
-                    h2 = values[6]
-                    co = values[9]
-                    print(f"H2: {h2}, CO: {co}")
 
+else:
+    client = None
+    print("InfluxDB connection disabled")
+
+
+def peak2influxdb():
+    while True:
+        with serial.Serial("/dev/analyzer", 9600) as ser:
+            try:
+                values = ser.read_until(b"\x03").decode("utf-8").split(",")
+                print(values)
+                measurement_date = values[1]
+                measurement_time = values[2]
+                h2 = values[6]
+                co = values[9]
+                print(f"H2: {h2}, CO: {co}")
+
+                if cfg["influxdb"]["enabled"]:
                     BasicSeriesHelper(
                         node="sws-1",
                         h2=int(h2),
                         co=int(co),
                     )
-                except Exception as e:
-                    print(e)
 
-    print("Start peak2influxdb thread")
-    threading.Thread(target=peak2influxdb).start()
-else:
-    print("InfluxDB connection disabled")
+                states_string = ",".join(f"{k},{v}" for k, v in states.items())
+
+                with open(cfg["data_file"], "a") as data_file:
+                    data_file.write(
+                        f"{measurement_date},{measurement_time},{h2},{co},{states_string}\n"
+                    )
+
+            except Exception as e:
+                print(e)
+
+
+print("Start peak2influxdb thread")
+threading.Thread(target=peak2influxdb).start()
 
 
 def init_serial(connection):
@@ -107,7 +124,6 @@ def init_gpio(connection):
     cfg_gpio = cfg["devices"].get("gpio", {})
     for port, state in cfg_gpio.get("init", {}).items():
         gpio = cfg_gpio["mapping"][port]
-        print(gpio)
         if Path(f"/sys/class/gpio/gpio{gpio}").is_dir():
             Path("/sys/class/gpio/unexport").write_text(str(gpio))
 
@@ -159,13 +175,21 @@ def set_state(device: str, port: int, state):
     elif device.startswith("gpio"):
         set_gpio(cfg["devices"][device], port, state)
 
-    if state_file:
-        state_file.write_text(json.dumps(states, sort_keys=True, indent=4))
+    if states_file:
+        states_file.write_text(json.dumps(states, sort_keys=True, indent=4))
 
-    if cfg["influxdb"]["enabled"]:
-        client.write_points(
-            [{"measurement": "valve_state", "fields": {f"{device}_{port}": int(state)}}]
-        )
+    if client:
+        try:
+            client.write_points(
+                [
+                    {
+                        "measurement": "valve_state",
+                        "fields": {f"{device}_{port}": int(state)},
+                    }
+                ]
+            )
+        except Exception as e:
+            print(e)
 
 
 for name, connection in cfg["devices"].items():

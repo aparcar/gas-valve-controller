@@ -2,8 +2,9 @@
 import cgi
 import cgitb
 import os
+from subprocess import PIPE, check_output, run
+
 import yaml
-from subprocess import run, PIPE, check_output
 
 cgitb.enable()
 
@@ -19,7 +20,9 @@ table, th, td {
 		</style>
 	</header>
 	<body>
-    <h1>Valve Controller</h1>"""
+    <h1>Valve Controller</h1>
+    <p><a href="/data.csv">Collected data (CSV)</a></p>
+"""
 )
 
 form = cgi.FieldStorage()
