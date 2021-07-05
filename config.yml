@@ -3,6 +3,7 @@
 manual_mode: false
 states_file: /www/states.json
 data_file: /www/data.csv
+step_file: /tmp/valve-controller-step
 
 devices:
   mpv1:

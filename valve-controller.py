@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python -u
 
 import json
 import sys
@@ -24,6 +24,8 @@ state_mapping = {
 }
 
 states = {}
+just_init = False
+manual_step = None
 
 print("Starting...")
 
@@ -32,11 +34,19 @@ def die(msg):
     print(f"Error: {msg}")
     sys.exit(1)
 
+print(sys.argv)
 
 if len(sys.argv) > 1:
     config_file = sys.argv[1]
 else:
     config_file = "config.yml"
+
+if len(sys.argv) > 2:
+    if "init" == sys.argv[2]:
+        print("Just reset to init state and quit")
+        just_init = True
+    elif "manual" == sys.argv[2]:
+        manual_step = sys.argv[3]
 
 config_path = Path(config_file)
 
@@ -49,6 +59,13 @@ print(f"Loaded config from {config_file}")
 
 if "states_file" in cfg:
     states_file = Path(cfg["states_file"])
+else:
+    states_file = None
+
+if "step_file" in cfg:
+    step_file = Path(cfg["step_file"])
+else:
+    step_file = None
 
 if cfg["influxdb"]["enabled"]:
     print("Connecting to InfluxDB")
@@ -80,7 +97,6 @@ def peak2influxdb():
         with serial.Serial("/dev/analyzer", 9600) as ser:
             try:
                 values = ser.read_until(b"\x03").decode("utf-8").split(",")
-                print(values)
                 measurement_date = values[1]
                 measurement_time = values[2]
                 h2 = values[6]
@@ -105,8 +121,9 @@ def peak2influxdb():
                 print(e)
 
 
-print("Start peak2influxdb thread")
-threading.Thread(target=peak2influxdb).start()
+if cfg.get("enable_peak2influxdb"):
+    print("Start peak2influxdb thread")
+    threading.Thread(target=peak2influxdb).start()
 
 
 def init_serial(connection):
@@ -121,19 +138,21 @@ def init_sv(connection):
 
 
 def init_gpio(connection):
-    cfg_gpio = cfg["devices"].get("gpio", {})
-    for port, state in cfg_gpio.get("init", {}).items():
-        gpio = cfg_gpio["mapping"][port]
-        if Path(f"/sys/class/gpio/gpio{gpio}").is_dir():
-            Path("/sys/class/gpio/unexport").write_text(str(gpio))
+    pass
 
-        if state:
-            Path("/sys/class/gpio/export").write_text(str(gpio))
-            Path(f"/sys/class/gpio/gpio{gpio}/direction").write_text("out")
+
+# cfg_gpio = cfg["devices"].get("gpio", {})
+# for port, state in cfg_gpio.get("init", {}).items():
+#    gpio = cfg_gpio["mapping"][port]
+#    if Path(f"/sys/class/gpio/gpio{gpio}").is_dir():
+#        Path("/sys/class/gpio/unexport").write_text(str(gpio))
+
+#    if state:
+#        Path("/sys/class/gpio/export").write_text(str(gpio))
+#        Path(f"/sys/class/gpio/gpio{gpio}/direction").write_text("out")
 
 
 def set_gpio(connection, port: int, state):
-    print(f"{port}: {state}")
     gpio = connection["mapping"][port]
     if state == 1:
         if not Path(f"/sys/class/gpio/gpio{gpio}/").is_dir():
@@ -207,29 +226,51 @@ for name, connection in cfg["devices"].items():
     else:
         die(f"Unkown device type: {name}. Pleaes use 'gpio', 'sv' or 'mpv'")
 
-    for port, state in connection["init"].items():
-        print(f"{name}: Set port {port} to state {state}")
-        set_state(name, port, state)
+    # don't set init state if step file exists
+    if not step_file.exists() or just_init or not manual_step:
+        for port, state in connection["init"].items():
+            print(f"{name}: Set port {port} to state {state}")
+            set_state(name, port, state)
+    else:
+        print("Skip init state since step file exists or maual step")
 
-    time.sleep(1)
+    time.sleep(0.1)
 
+if just_init:
+    sys.exit(0)
+
+if manual_step:
+    device, port, state = manual_step.strip().split(",")
+    set_state(device, int(port), state)
+    sys.exit(0)
+
+# make sure the sequence is sorted correctly
 cfg["sequence"].sort()
 
+# find total sequence length and step count
 length_minutes = cfg["sequence"][-1].split(",")[0]
 step_count = len(cfg["sequence"])
 
 print(f"Total sequence length is {length_minutes} minutes")
 
+time_passed = 0.0
+sequence_step = 0
+if step_file.exists():
+    sequence_step, time_passed = step_file.read_text().strip().split(",")
+    sequence_step = int(sequence_step)
+    time_passed = float(time_passed)
+    if sequence_step > step_count:
+        die(
+            "Read sequence step {sequence_step} is higher than total step count {step_count}"
+        )
 
-print("Enter infinite valve loop")
+print("Start sequence")
 while True:
-    print("Start sequence from beginning")
-    time_passed = 0.0
-    for number, step in enumerate(cfg["sequence"]):
+    for number, step in enumerate(cfg["sequence"][sequence_step:]):
         delay, device, port, state = step.strip().split(",")
         time_to_wait = float(delay) * 60 - time_passed
         print(
-            f"[{number}/{step_count}]: "
+            f"[{number + sequence_step + 1}/{step_count}]: "
             f"Set {device}#{port} to {state} in {time_to_wait} seconds"
         )
 
@@ -241,5 +282,12 @@ while True:
         time_passed += time_to_wait
         set_state(device, int(port), state)
 
+        if step_file:
+            step_file.write_text(f"{number + sequence_step},{time_passed}")
+
     if not cfg.get("sequence_loop", True):
+        print("No repeat of sequence since sequence_loop is disabled")
         break
+
+    sequence_step = 0
+    time_passed = 0.0

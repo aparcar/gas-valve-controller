@@ -8,6 +8,7 @@ import yaml
 
 cgitb.enable()
 
+
 print("Content-Type: text/html")
 print(
     """
@@ -28,19 +29,54 @@ table, th, td {
 form = cgi.FieldStorage()
 
 if form:
-    fileitem = form["filename"]
-    open("/root/config.yml.tmp", "wb").write(fileitem.file.read())
-    try:
-        yaml.safe_load(open("/root/config.yml.tmp"))
-        print("<p>Config uploaded</p>")
-        os.rename("/root/config.yml.tmp", "/root/config.yml")
-        run(["/etc/init.d/valve-controller", "restart"])
-    except Exception as e:
-        print("<p>Config error</p>")
-        print(f"<pre>{e}</pre>")
+    if "filename" in form:
+        fileitem = form["filename"]
+        open("/root/config.yml.tmp", "wb").write(fileitem.file.read())
+        try:
+            yaml.safe_load(open("/root/config.yml.tmp"))
+            print("<p>Action: Config upload</p>")
+            os.rename("/root/config.yml.tmp", "/root/config.yml")
+            run(["/etc/init.d/valve-controller", "restart"])
+        except Exception as e:
+            print("<p>Config error</p>")
+            print(f"<pre>{e}</pre>")
+    elif "init" in form:
+        print("<p>Action: Reset</p>")
+        run(["/etc/init.d/valve-controller", "stop"], check=False)
+        run(["/etc/init.d/valve-controller", "init"], check=False)
+    elif "stop" in form:
+        print("<p>Action: Stop</p>")
+        run(["/etc/init.d/valve-controller", "stop"])
+    elif "resume" in form:
+        print("<p>Action: Resume</p>")
+        run(["/etc/init.d/valve-controller", "start"])
+    elif "restart" in form:
+        print("<p>Action: Restart</p>")
+        run(["/etc/init.d/valve-controller", "stop"])
+        if os.path.exists("/tmp/valve-controller-step"):
+            os.remove("/tmp/valve-controller-step")
+        run(["/etc/init.d/valve-controller", "start"])
+    elif "manual" in form:
+        manual = form["manual"].value
+        print(f"<p>Action: Manual {manual}</p>")
+        run(["/etc/init.d/valve-controller", "stop"])
+        run(
+            ["/usr/bin/valve-controller", "/root/config.yml", "manual", manual],
+            stdout=PIPE,
+        )
+
+
+status = run(
+    "/etc/init.d/valve-controller status",
+    shell=True,
+    text=True,
+    check=False,
+    stdout=PIPE,
+).stdout
+print(f"<p>Status: {status}</p>")
 
 log = "\n".join(
-    check_output("logread -e valve-controller", shell=True, text=True).splitlines()[-20:-1]
+    check_output("logread -e python", shell=True, text=True).splitlines()[-20:]
 )
 
 print(
@@ -50,10 +86,31 @@ print(
 			<input type="file" name="filename">
 			<input type="submit">
 		</form>
-		<table id="states"></table>
+		<form enctype="multipart/form-data" action="/cgi-bin/valve-cgi" method="POST">
+			<input type="hidden" name="init">
+			<input type="submit" value="Reset to init state">
+		</form>
+		<form enctype="multipart/form-data" action="/cgi-bin/valve-cgi" method="POST">
+			<input type="hidden" name="stop">
+			<input type="submit" value="Stop">
+		</form>
+		<form enctype="multipart/form-data" action="/cgi-bin/valve-cgi" method="POST">
+			<input type="hidden" name="resume">
+			<input type="submit" value="Resume">
+		</form>
+		<form enctype="multipart/form-data" action="/cgi-bin/valve-cgi" method="POST">
+			<input type="hidden" name="restart">
+			<input type="submit" value="Restart">
+		</form>
+        Manual step <pre>device,port,state</pre>
+		<form enctype="multipart/form-data" action="/cgi-bin/valve-cgi" method="POST">
+			<input type="text" name="manual">
+			<input type="submit" value="run">
+		</form>
         <h3>Log</h3>
         No automatic reload
         <pre>{log}</pre>
+		<table id="states"></table>
 		<script src="/valve-controller.js"> </script>
 	</body>
 </html>"""
