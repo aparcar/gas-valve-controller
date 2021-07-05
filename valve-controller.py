@@ -227,12 +227,12 @@ for name, connection in cfg["devices"].items():
         die(f"Unkown device type: {name}. Pleaes use 'gpio', 'sv' or 'mpv'")
 
     # don't set init state if step file exists
-    if not step_file.exists() or just_init or not manual_step:
+    if step_file.exists() or manual_step:
+        print("Skip init state since step file exists or maual step")
+    else:
         for port, state in connection["init"].items():
             print(f"{name}: Set port {port} to state {state}")
             set_state(name, port, state)
-    else:
-        print("Skip init state since step file exists or maual step")
 
     time.sleep(0.1)
 
