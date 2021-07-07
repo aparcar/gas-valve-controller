@@ -121,7 +121,7 @@ def peak2influxdb():
                 print(e)
 
 
-if cfg.get("enable_peak2influxdb"):
+if cfg.get("enable_peak2influxdb", True):
     print("Start peak2influxdb thread")
     threading.Thread(target=peak2influxdb).start()
 
