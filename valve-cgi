@@ -53,6 +53,10 @@ if form:
     elif "resume" in form:
         print("<p>Action: Resume</p>")
         run(["/etc/init.d/valve-controller", "start"])
+    elif "remove" in form:
+        print("<p>Action: Remove stored CSV</p>")
+        if os.path.exists("/www/data.csv"):
+            os.remove("/www/data.csv")
     elif "restart" in form:
         print("<p>Action: Restart</p>")
         run(["/etc/init.d/valve-controller", "stop"])
@@ -104,6 +108,10 @@ print(
 		<form enctype="multipart/form-data" action="/cgi-bin/valve-cgi" method="POST">
 			<input type="hidden" name="restart">
 			<input type="submit" value="Restart">
+		</form>
+		<form enctype="multipart/form-data" action="/cgi-bin/valve-cgi" method="POST">
+			<input type="text" name="remove">
+			<input type="submit" value="Remove stored CSV">
 		</form>
         Manual step <pre>device,port,state</pre>
 		<form enctype="multipart/form-data" action="/cgi-bin/valve-cgi" method="POST">
