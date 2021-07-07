@@ -36,7 +36,10 @@ if form:
             yaml.safe_load(open("/root/config.yml.tmp"))
             print("<p>Action: Config upload</p>")
             os.rename("/root/config.yml.tmp", "/root/config.yml")
-            run(["/etc/init.d/valve-controller", "restart"])
+            run(["/etc/init.d/valve-controller", "stop"])
+            if os.path.exists("/tmp/valve-controller-step"):
+                os.remove("/tmp/valve-controller-step")
+            run(["/etc/init.d/valve-controller", "start"])
         except Exception as e:
             print("<p>Config error</p>")
             print(f"<pre>{e}</pre>")
