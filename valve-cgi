@@ -110,10 +110,10 @@ print(
 			<input type="text" name="manual">
 			<input type="submit" value="run">
 		</form>
+		<table id="states"></table>
         <h3>Log</h3>
         No automatic reload
         <pre>{log}</pre>
-		<table id="states"></table>
 		<script src="/valve-controller.js"> </script>
 	</body>
 </html>"""
