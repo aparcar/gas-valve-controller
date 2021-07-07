@@ -110,7 +110,7 @@ print(
 			<input type="submit" value="Restart">
 		</form>
 		<form enctype="multipart/form-data" action="/cgi-bin/valve-cgi" method="POST">
-			<input type="text" name="remove">
+			<input type="hidden" name="remove">
 			<input type="submit" value="Remove stored CSV">
 		</form>
         Manual step <pre>device,port,state</pre>
