@@ -34,8 +34,6 @@ def die(msg):
     print(f"Error: {msg}")
     sys.exit(1)
 
-print(sys.argv)
-
 if len(sys.argv) > 1:
     config_file = sys.argv[1]
 else:
@@ -59,6 +57,8 @@ print(f"Loaded config from {config_file}")
 
 if "states_file" in cfg:
     states_file = Path(cfg["states_file"])
+    if states_file.exists():
+        states = yaml.safe_load(states_file.read_text())
 else:
     states_file = None
 
