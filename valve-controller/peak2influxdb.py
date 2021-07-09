@@ -6,7 +6,7 @@ from pathlib import Path
 
 import serial
 import yaml
-from influxdb import InfluxDBClient, SeriesHelper
+from influxdb import InfluxDBClient
 
 
 def die(msg):
@@ -37,16 +37,6 @@ client = InfluxDBClient(
 )
 
 
-class BasicSeriesHelper(SeriesHelper):
-    class Meta:
-        client = client
-        series_name = "events.stats.basic"
-        fields = ["h2", "co"]
-        tags = ["node"]
-        bulk_size = 1
-        autocommit = True
-
-
 print("Start peak2influxdb")
 
 while True:
@@ -65,7 +55,17 @@ while True:
             print(f"H2: {h2}, CO: {co}")
 
             if cfg["influxdb"]["enabled"]:
-                BasicSeriesHelper(node="sws-1", h2=int(h2), co=int(co), **states)
+                fields = dict(h2=int(h2), co=int(co), **states)
+                client.write_points(
+                    [
+                        {
+                            "measurement": "events.stats.basic",
+                            "fields": fields,
+                            "tags": {"node": "sws-1"},
+                        }
+                    ]
+                )
+                print(fields)
 
             states_string = ",".join(f"{k},{v}" for k, v in states.items())
 
