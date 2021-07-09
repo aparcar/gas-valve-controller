@@ -1,5 +1,4 @@
 
-
 manual_mode: false
 states_file: /www/states.json
 data_file: /www/data.csv
@@ -7,7 +6,7 @@ step_file: /tmp/valve-controller-step
 
 devices:
   mpv1:
-    enabled: true
+    enabled: false
     port: /dev/mpv1
     baud: 9600
     init:
@@ -15,7 +14,7 @@ devices:
       1: 2
 
   mpv2:
-    enabled: true
+    enabled: false
     port: /dev/mpv2
     baud: 9600
     init:
@@ -29,7 +28,7 @@ devices:
       1: A
 
   sv:
-    enabled: true
+    enabled: false
     port: /dev/relay
     baud: 115200
     mapping:
@@ -50,7 +49,7 @@ devices:
       7: 0
 
   gpio:
-    enabled: false
+    enabled: true
     mapping:
       # relay: pin
       # RaspberryPi 4 B setup
@@ -80,6 +79,14 @@ devices:
 sequence_loop: true
 
 sequence:
+  - 0.1,gpio,1,1
+  - 0.1,gpio,2,1
+  - 0.2,gpio,1,0
+  - 0.3,gpio,1,1
+  - 0.4,gpio,2,0
+  - 0.4,gpio,1,0
+
+sequence_test:
   # Reboot program (this discharges any water sample in the system)
   - 0.1,sv,2,1
   - 0.15,sv,3,1
